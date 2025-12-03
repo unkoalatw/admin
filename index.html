@@ -268,6 +268,7 @@
             <button onclick="navigateToStore('shops')" class="store-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-store mr-1"></i> 店家管理</button>
             <button onclick="navigateToStore('announcements')" class="store-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-bullhorn mr-1"></i> 公告</button>
             <button onclick="navigateToStore('policies')" class="store-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-file-alt mr-1"></i> 政策</button>
+            <a href="https://dashboard.emailjs.com/admin/templates" target="_blank" class="sub-nav-item pb-3 text-sm font-medium whitespace-nowrap hover:text-emerald-400 transition-colors flex items-center"><i class="fas fa-envelope-open-text mr-1"></i> Email 模板</a>
         </div>
         <div id="store-content-area" class="min-h-[400px]"><div class="text-center text-slate-500 mt-20">正在連接商店數據庫...</div></div>
     </div>
@@ -277,6 +278,7 @@
     let sessionToken = localStorage.getItem('admin_session_token');
     let storeAuthToken = localStorage.getItem('store_auth_token');
     let currentCtx = 'personal';
+    let currentShopList = []; // [NEW] 全域變數，用來快取商店資料
 
     // === UTILS ===
     const Toast = Swal.mixin({
@@ -537,6 +539,7 @@
         },
         shops: async () => {
             const data = await callStoreApi('getShops');
+            currentShopList = data.shops; // [NEW] 儲存店家列表供預覽使用
             return `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold text-white">店家列表</h2><button onclick="openShopForm()" class="btn-primary px-4 py-2 rounded-lg text-white font-bold"><i class="fas fa-plus mr-2"></i> 新增店家</button></div><div class="glass-panel rounded-2xl overflow-hidden overflow-x-auto"><table class="w-full store-table min-w-[600px]"><thead class="bg-white/5"><tr><th>店家名稱 (繁中)</th><th>類型</th><th>操作</th></tr></thead><tbody>${data.shops.map(s => `<tr><td class="font-bold text-emerald-400">${s['name_zh-TW']}</td><td><span class="px-2 py-1 bg-white/10 rounded text-xs">${s['type_zh-TW']}</span></td><td class="space-x-2"><button onclick="openShopForm('${s.id}')" class="text-blue-400 hover:text-blue-300"><i class="fas fa-edit"></i></button><button onclick="deleteShop('${s.id}')" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button><button onclick="recommendShop('${s.id}')" class="text-purple-400 hover:text-purple-300" title="發送推薦信"><i class="fas fa-envelope"></i></button></td></tr>`).join('')}</tbody></table></div>`;
         }
     };
@@ -545,7 +548,42 @@
     async function saveAnnouncements() { const content = document.getElementById('announcementsEditor').value; await callStoreApi('setAnnouncements', { payload: { content } }); Toast.fire({icon:'success', title:'公告已更新'}); }
     async function savePolicy(key) { const value = document.getElementById(key).value; await callStoreApi('setPolicy', { payload: { key, value } }); Toast.fire({icon:'success', title:'政策已更新'}); }
     async function deleteShop(id) { if(!(await Swal.fire({title:'刪除店家?', icon:'warning', showCancelButton:true, background:'#1e293b'})).isConfirmed) return; await callStoreApi('deleteShop', { id }); navigateToStore('shops'); }
-    async function recommendShop(shopId) { if(!(await Swal.fire({title:'發送推薦信?', text:'這將會寄信給所有訂閱者', icon:'question', showCancelButton:true, background:'#1e293b'})).isConfirmed) return; Toast.fire({icon:'info', title:'正在發送...'}); await callStoreApi('sendRecommendation', { shopId }); Toast.fire({icon:'success', title:'發送成功'}); }
+    
+    // [NEW] 升級版推薦信發送邏輯
+    async function recommendShop(shopId) { 
+        // 1. 找到店家資料
+        const shop = currentShopList.find(s => s.id === shopId);
+        if(!shop) return;
+
+        // 2. 建立預覽 HTML
+        const previewHtml = `
+            <div class="text-left bg-slate-800 p-4 rounded-lg border border-white/10 mt-4">
+                <div class="text-emerald-400 font-bold text-lg mb-1">${shop['name_zh-TW']}</div>
+                <div class="text-slate-400 text-xs mb-3"><i class="fas fa-map-marker-alt mr-1"></i> ${shop['address_zh-TW'] || '地址未設定'}</div>
+                <div class="text-slate-300 text-sm bg-black/30 p-3 rounded italic">
+                    "${(shop['description_zh-TW'] || '暫無描述').substring(0, 80)}..."
+                </div>
+            </div>
+            <p class="text-slate-400 text-xs mt-4">這將會寄信給所有訂閱者，確定發送？</p>
+        `;
+
+        // 3. 顯示預覽確認框
+        if(!(await Swal.fire({
+            title: '📢 發送推薦信',
+            html: previewHtml,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: '確認發送',
+            confirmButtonColor: '#a855f7',
+            cancelButtonText: '再等等',
+            background: '#0f172a',
+            color: '#fff'
+        })).isConfirmed) return;
+
+        Toast.fire({icon:'info', title:'正在發送...'});
+        await callStoreApi('sendRecommendation', { shopId });
+        Toast.fire({icon:'success', title:'發送成功'});
+    }
 
     async function openShopForm(shopId = null) {
         const modal = document.getElementById('storeModal'), body = document.getElementById('storeModalBody'), title = document.getElementById('storeModalTitle'), saveBtn = document.getElementById('storeModalSaveBtn');
