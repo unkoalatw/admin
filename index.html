@@ -551,38 +551,54 @@
     
     // [NEW] 升級版推薦信發送邏輯
     async function recommendShop(shopId) { 
-        // 1. 找到店家資料
-        const shop = currentShopList.find(s => s.id === shopId);
-        if(!shop) return;
+        try {
+            // 1. 找到店家資料 (使用 String 比較以防類型不符)
+            const shop = currentShopList.find(s => String(s.id) === String(shopId));
+            
+            if(!shop) {
+                console.error("Shop not found in cache:", shopId, currentShopList);
+                throw new Error("找不到店家資料，請重新整理頁面");
+            }
 
-        // 2. 建立預覽 HTML
-        const previewHtml = `
-            <div class="text-left bg-slate-800 p-4 rounded-lg border border-white/10 mt-4">
-                <div class="text-emerald-400 font-bold text-lg mb-1">${shop['name_zh-TW']}</div>
-                <div class="text-slate-400 text-xs mb-3"><i class="fas fa-map-marker-alt mr-1"></i> ${shop['address_zh-TW'] || '地址未設定'}</div>
-                <div class="text-slate-300 text-sm bg-black/30 p-3 rounded italic">
-                    "${(shop['description_zh-TW'] || '暫無描述').substring(0, 80)}..."
+            // 2. 建立預覽 HTML
+            const previewHtml = `
+                <div class="text-left bg-slate-800 p-4 rounded-lg border border-white/10 mt-4">
+                    <div class="text-emerald-400 font-bold text-lg mb-1">${shop['name_zh-TW']}</div>
+                    <div class="text-slate-400 text-xs mb-3"><i class="fas fa-map-marker-alt mr-1"></i> ${shop['address_zh-TW'] || '地址未設定'}</div>
+                    <div class="text-slate-300 text-sm bg-black/30 p-3 rounded italic">
+                        "${(shop['description_zh-TW'] || '暫無描述').substring(0, 80)}..."
+                    </div>
                 </div>
-            </div>
-            <p class="text-slate-400 text-xs mt-4">這將會寄信給所有訂閱者，確定發送？</p>
-        `;
+                <p class="text-slate-400 text-xs mt-4">這將會寄信給所有訂閱者，確定發送？</p>
+            `;
 
-        // 3. 顯示預覽確認框
-        if(!(await Swal.fire({
-            title: '📢 發送推薦信',
-            html: previewHtml,
-            icon: 'info',
-            showCancelButton: true,
-            confirmButtonText: '確認發送',
-            confirmButtonColor: '#a855f7',
-            cancelButtonText: '再等等',
-            background: '#0f172a',
-            color: '#fff'
-        })).isConfirmed) return;
+            // 3. 顯示預覽確認框
+            if(!(await Swal.fire({
+                title: '📢 發送推薦信',
+                html: previewHtml,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonText: '確認發送',
+                confirmButtonColor: '#a855f7',
+                cancelButtonText: '再等等',
+                background: '#0f172a',
+                color: '#fff'
+            })).isConfirmed) return;
 
-        Toast.fire({icon:'info', title:'正在發送...'});
-        await callStoreApi('sendRecommendation', { shopId });
-        Toast.fire({icon:'success', title:'發送成功'});
+            Toast.fire({icon:'info', title:'正在發送...'});
+            // 使用 shop.id 確保傳遞給 API 的型別正確
+            await callStoreApi('sendRecommendation', { shopId: shop.id });
+            Toast.fire({icon:'success', title:'發送成功'});
+        } catch (e) {
+            console.error("Recommend Error:", e);
+            Swal.fire({
+                icon: 'error',
+                title: '發送失敗',
+                text: e.message,
+                background: '#1e293b',
+                color: '#fff'
+            });
+        }
     }
 
     async function openShopForm(shopId = null) {
