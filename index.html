@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Admin Console</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    /* === 全局樣式 & 極光背景 === */
+    body { background-color: #0a0a0a; color: #f8fafc; font-family: 'Inter', sans-serif; overflow-x: hidden; cursor: none; }
+    
+    /* SweetAlert 自定義 */
+    .swal2-container { z-index: 100000 !important; }
+    .swal2-popup { background: #0f172a !important; border: 1px solid #334155; box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
+    .swal2-title { color: #fff !important; font-family: 'JetBrains Mono', monospace; }
+    .swal2-html-container { color: #cbd5e1 !important; }
+    .swal2-input { background: #1e293b !important; color: #fff !important; border: 1px solid #475569 !important; text-align: center; letter-spacing: 2px; }
+    .swal2-input:focus { border-color: #10b981 !important; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important; }
+    
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0a0a0a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* 極光動畫 */
+    .gradient-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; overflow: hidden; pointer-events: none; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.4; animation: blob 10s infinite cubic-bezier(0.4, 0, 0.2, 1); }
+    .orb-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #4f46e5; animation-delay: 0s; }
+    .orb-2 { top: 20%; right: -10%; width: 40vw; height: 40vw; background: #10b981; animation-delay: 2s; }
+    .orb-3 { bottom: -10%; left: 20%; width: 60vw; height: 60vw; background: #3b82f6; animation-delay: 4s; }
+    @keyframes blob { 0% { transform: translate(0, 0) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0, 0) scale(1); } }
+
+    /* 玻璃擬態組件 */
+    .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); transition: all 0.3s ease; }
+    .glass-panel:hover { border-color: rgba(255, 255, 255, 0.1); }
+    
+    .glass-input { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); color: white; transition: all 0.3s; }
+    .glass-input:focus { border-color: #10b981; background: rgba(0, 0, 0, 0.5); outline: none; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); }
+    
+    .btn-primary { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); transition: all 0.3s; border: none; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
+    
+    /* 導航與列表 */
+    .nav-pill { color: #94a3b8; transition: all 0.3s; border-radius: 0.5rem; }
+    .nav-pill:hover { color: white; background: rgba(255,255,255,0.05); }
+    .nav-pill.active { color: white; background: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
+
+    .sub-nav-item { color: #64748b; border-bottom: 2px solid transparent; transition: all 0.3s; cursor: pointer; }
+    .sub-nav-item:hover { color: #cbd5e1; }
+    .sub-nav-item.active { color: #10b981; border-bottom-color: #10b981; }
+    
+    /* 客製化游標 */
+    .cursor-dot { width: 8px; height: 8px; background-color: white; position: fixed; top: 0; left: 0; transform: translate(-50%, -50%); border-radius: 50%; z-index: 9999; pointer-events: none; mix-blend-mode: difference; }
+    .cursor-outline { width: 40px; height: 40px; border: 1.5px solid rgba(255, 255, 255, 0.5); position: fixed; top: 0; left: 0; transform: translate(-50%, -50%); border-radius: 50%; z-index: 9998; pointer-events: none; transition: width 0.2s, height 0.2s, background-color 0.2s; mix-blend-mode: difference; }
+    body.hovering .cursor-outline { width: 60px; height: 60px; background-color: rgba(255, 255, 255, 0.2); border-color: transparent; }
+
+    /* Loading Screen */
+    #preloader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0a0a; z-index: 99999; display: flex; justify-content: center; align-items: center; transition: opacity 0.8s; }
+    .loader-bar { width: 200px; height: 2px; background: #1e293b; margin-top: 20px; overflow: hidden; position: relative; }
+    .loader-progress { position: absolute; top: 0; left: 0; height: 100%; width: 0%; background: #10b981; transition: width 0.3s; box-shadow: 0 0 10px #10b981; }
+    
+    /* Store specific overrides */
+    .store-table th { color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; padding: 1rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .store-table td { padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #e2e8f0; }
+    .store-table tr:hover td { background: rgba(255,255,255,0.02); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ==================== CONFIGURATION ==================== -->
+  <script>
+    const API_PERSONAL = "https://script.google.com/macros/s/AKfycbw1J5DNcuCTfTGeQXhosPZYOW0MAfXDCNBHIi7rQTQMw7Nrfieuc4XEw0diuQkQ6XdUPg/exec";
+    const API_STORE = "https://script.google.com/macros/s/AKfycbzVebFWCKnDEiJOc1bJKtc5qIHifZceuXssrwb7Zir6FYOQLokhgzNoFeLZkFdLK7f5oA/exec";
+  </script>
+  <!-- ======================================================= -->
+
+  <!-- Preloader -->
+  <div id="preloader">
+    <div class="loader-content text-center">
+      <div class="text-3xl font-bold text-white tracking-widest mb-2 font-mono">UNKOALA ADMIN</div>
+      <div class="text-xs text-slate-500 font-mono mb-4" id="loader-text">SECURITY CHECK REQUIRED</div>
+      <div class="loader-bar"><div class="loader-progress" id="loader-progress"></div></div>
+    </div>
+  </div>
+
+  <div class="gradient-bg"><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div></div>
+  <div class="cursor-dot hidden md:block"></div><div class="cursor-outline hidden md:block"></div>
+
+  <!-- Store Modal -->
+  <div id="storeModal" class="fixed inset-0 bg-black/80 hidden z-[2000] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="glass-panel w-full max-w-4xl rounded-2xl flex flex-col max-h-[90vh]">
+        <div class="p-6 border-b border-white/10 flex justify-between items-center">
+            <h3 id="storeModalTitle" class="text-xl font-bold text-white"></h3>
+            <button onclick="closeStoreModal()" class="text-slate-400 hover:text-white transition text-2xl cursor-hover">&times;</button>
+        </div>
+        <div id="storeModalBody" class="p-6 overflow-y-auto custom-scrollbar"></div>
+        <div class="p-4 border-t border-white/10 bg-white/5 flex justify-end gap-4 rounded-b-2xl">
+            <button onclick="closeStoreModal()" class="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-600 transition cursor-hover">取消</button>
+            <button id="storeModalSaveBtn" class="btn-primary px-4 py-2 rounded-lg text-white font-bold cursor-hover">儲存</button>
+        </div>
+    </div>
+  </div>
+
+  <main class="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full relative z-10">
+    
+    <!-- Top Header & Navigation -->
+    <div class="glass-panel rounded-2xl p-2 mb-6 cursor-hover sticky top-4 z-50">
+      <div class="flex flex-col md:flex-row justify-between items-center px-4 py-3 gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
+            <i class="fas fa-terminal text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold tracking-wide text-white">UNKOALA<span class="text-emerald-500">.DEV</span></h1>
+            <div class="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                <span id="status-dot" class="w-2 h-2 rounded-full bg-red-500"></span>
+                <span id="status-text">LOCKED</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex bg-black/40 rounded-lg p-1">
+            <button onclick="switchContext('personal')" id="ctx-personal" class="nav-pill active px-6 py-2 text-sm font-medium flex items-center gap-2 cursor-hover"><i class="fas fa-user-astronaut"></i> 個人核心</button>
+            <button onclick="switchContext('store')" id="ctx-store" class="nav-pill px-6 py-2 text-sm font-medium flex items-center gap-2 cursor-hover"><i class="fas fa-store"></i> 綠色商店</button>
+        </div>
+        <button onclick="logout()" class="px-3 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition cursor-hover"><i class="fas fa-power-off"></i></button>
+      </div>
+    </div>
+
+    <!-- ==================== CONTEXT 1: PERSONAL CORE ==================== -->
+    <div id="context-personal" class="space-y-6 animate-fade-in">
+        <div class="flex gap-6 border-b border-white/10 px-2">
+            <button onclick="switchPersonalTab('dashboard')" id="ptab-dashboard" class="sub-nav-item active pb-3 text-sm font-medium"><i class="fas fa-chart-pie mr-1"></i> 儀表板</button>
+            <button onclick="switchPersonalTab('chat')" id="ptab-chat" class="sub-nav-item pb-3 text-sm font-medium"><i class="fas fa-comments mr-1"></i> 訊息</button>
+            <button onclick="switchPersonalTab('cards')" id="ptab-cards" class="sub-nav-item pb-3 text-sm font-medium"><i class="fas fa-layer-group mr-1"></i> 卡片</button>
+            <button onclick="switchPersonalTab('settings')" id="ptab-settings" class="sub-nav-item pb-3 text-sm font-medium"><i class="fas fa-sliders-h mr-1"></i> 設定</button>
+        </div>
+
+        <!-- P-View: Dashboard -->
+        <div id="pview-dashboard" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+                  <div class="absolute top-0 right-0 p-6 opacity-10 transition group-hover:scale-110"><i class="fas fa-link text-5xl text-emerald-400"></i></div>
+                  <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Total Links</h3>
+                  <div class="text-4xl font-bold text-white" id="dash-total-links">-</div>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+                  <div class="absolute top-0 right-0 p-6 opacity-10 transition group-hover:scale-110"><i class="fas fa-comments text-5xl text-indigo-400"></i></div>
+                  <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Messages</h3>
+                  <div class="text-4xl font-bold text-white" id="dash-msg-count">0</div>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+                  <div class="absolute top-0 right-0 p-6 opacity-10 transition group-hover:scale-110"><i class="fas fa-server text-5xl text-blue-400"></i></div>
+                  <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Status</h3>
+                  <div class="text-4xl font-bold text-emerald-400">Stable</div>
+                </div>
+            </div>
+            
+            <!-- Restored: Chart & Terminal -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl">
+                    <h3 class="text-slate-400 text-xs font-bold uppercase mb-4">Traffic Overview</h3>
+                    <div class="h-64"><canvas id="trafficChart"></canvas></div>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl flex flex-col">
+                    <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                        <h3 class="text-slate-400 text-xs font-bold uppercase"><i class="fas fa-terminal mr-2"></i>System Log</h3>
+                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    </div>
+                    <div id="terminal-output" class="flex-1 overflow-y-auto h-56 pr-2 font-mono text-xs text-green-500 space-y-1">
+                        <div>> Initializing core systems...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- P-View: Chat -->
+        <div id="pview-chat" class="hidden h-[600px] flex gap-6">
+            <div class="w-1/3 glass-panel rounded-2xl overflow-hidden flex flex-col">
+              <div class="p-4 border-b border-white/10 bg-white/5"><h3 class="font-bold text-white">對話列表</h3></div>
+              <div id="chat-sessions" class="flex-1 overflow-y-auto custom-scrollbar"><div class="text-center text-slate-500 mt-10">載入中...</div></div>
+              <button onclick="loadChatSessions()" class="p-3 text-center text-sm text-emerald-400 hover:bg-emerald-500/10 border-t border-white/10 cursor-hover"><i class="fas fa-sync-alt"></i></button>
+            </div>
+            <div class="flex-1 glass-panel rounded-2xl flex flex-col overflow-hidden relative">
+              <div class="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
+                <div><h3 class="font-bold text-white" id="current-chat-id">請選擇對話</h3></div>
+              </div>
+              <div id="chat-history" class="flex-1 overflow-y-auto p-6 flex flex-col gap-2 bg-black/20 custom-scrollbar"></div>
+              <div class="p-4 border-t border-white/10 bg-white/5 flex gap-2">
+                <input type="text" id="reply-input" placeholder="輸入回覆..." class="glass-input flex-1 rounded-lg px-4 py-3" disabled onkeydown="if(event.key==='Enter') sendAdminReply()">
+                <button onclick="sendAdminReply()" id="reply-btn" class="btn-primary px-6 rounded-lg text-white font-bold disabled:opacity-50 cursor-hover" disabled>發送</button>
+              </div>
+            </div>
+        </div>
+
+        <!-- P-View: Cards -->
+        <div id="pview-cards" class="hidden space-y-6">
+            <div class="glass-panel p-6 rounded-2xl border-l-4 border-l-emerald-500">
+                <div class="flex justify-between items-center mb-4">
+                  <h2 id="form-title" class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-plus-circle text-emerald-400"></i> 新增卡片</h2>
+                  <button onclick="resetCardForm()" id="cancel-edit-btn" class="hidden text-xs text-slate-400 hover:text-white px-3 py-1 rounded border border-slate-600 cursor-hover">取消</button>
+                </div>
+                <form id="cardForm" class="space-y-4">
+                  <input type="hidden" name="id" id="field-id">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" name="title" id="field-title" required placeholder="標題 Title" class="glass-input w-full rounded-lg px-4 py-3">
+                    <input type="url" name="url" id="field-url" required placeholder="連結 URL" class="glass-input w-full rounded-lg px-4 py-3">
+                  </div>
+                  <div class="flex gap-4">
+                      <input type="url" name="imageUrl" id="field-imageUrl" placeholder="圖片 Image URL" class="glass-input flex-1 rounded-lg px-4 py-3">
+                      <div class="w-12 h-12 rounded-lg bg-black/30 border border-white/10 overflow-hidden flex-shrink-0"><img id="img-preview" src="" onerror="this.style.display='none'" class="w-full h-full object-cover hidden"></div>
+                  </div>
+                  <textarea name="description" id="field-description" rows="2" placeholder="描述 Description..." class="glass-input w-full rounded-lg px-4 py-3 resize-none"></textarea>
+                  <button type="submit" id="submit-btn" class="btn-primary w-full py-3 rounded-xl font-bold text-white flex justify-center items-center gap-2 cursor-hover"><i class="fas fa-save"></i> 儲存</button>
+                </form>
+            </div>
+            <div id="card-list" class="space-y-3 pb-4"></div>
+        </div>
+
+        <!-- P-View: Settings (Restored Full) -->
+        <div id="pview-settings" class="hidden space-y-6">
+             <form id="settingsForm" class="space-y-6">
+                <div class="glass-panel p-6 rounded-2xl">
+                  <h3 class="text-emerald-400 text-sm font-bold mb-6 uppercase border-b border-white/5 pb-2">基本設定</h3>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                     <div class="space-y-1"><label class="text-xs text-slate-400 ml-1">網站標題</label><input type="text" name="site_title" class="glass-input w-full rounded-lg px-4 py-3"></div>
+                     <div class="space-y-1"><label class="text-xs text-slate-400 ml-1">副標題</label><input type="text" name="site_subtitle" class="glass-input w-full rounded-lg px-4 py-3"></div>
+                  </div>
+                  <div class="space-y-1 mb-6"><label class="text-xs text-slate-400 ml-1">頭像 URL</label><input type="url" name="avatar_url" class="glass-input w-full rounded-lg px-4 py-3"></div>
+                  <div class="space-y-1"><label class="text-xs text-slate-400 ml-1">個人簡介 (Bio)</label><textarea name="bio_text" class="glass-input w-full rounded-lg px-4 py-3 h-24 resize-none"></textarea></div>
+                </div>
+
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="text-indigo-400 text-sm font-bold mb-6 uppercase border-b border-white/5 pb-2">社群連結</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="relative"><i class="fab fa-github absolute left-4 top-3.5 text-slate-500"></i><input type="text" name="github_username" placeholder="GitHub ID" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                        <div class="relative"><i class="fab fa-instagram absolute left-4 top-3.5 text-slate-500"></i><input type="url" name="instagram_url" placeholder="Instagram URL" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                        <div class="relative"><i class="fab fa-twitter absolute left-4 top-3.5 text-slate-500"></i><input type="url" name="twitter_url" placeholder="Twitter URL" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                        <div class="relative"><i class="fab fa-linkedin absolute left-4 top-3.5 text-slate-500"></i><input type="url" name="linkedin_url" placeholder="LinkedIn URL" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                        <div class="relative"><i class="fab fa-facebook absolute left-4 top-3.5 text-slate-500"></i><input type="url" name="facebook_url" placeholder="Facebook URL" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                        <div class="relative"><i class="fab fa-youtube absolute left-4 top-3.5 text-slate-500"></i><input type="url" name="youtube_url" placeholder="YouTube URL" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                        <div class="relative"><i class="fas fa-envelope absolute left-4 top-3.5 text-slate-500"></i><input type="email" name="email_address" placeholder="Email" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                        <div class="relative"><i class="fas fa-globe absolute left-4 top-3.5 text-slate-500"></i><input type="url" name="website_url" placeholder="Website" class="glass-input w-full rounded-lg pl-10 pr-4 py-3"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary w-full py-4 rounded-xl font-bold text-white cursor-hover"><i class="fas fa-check-circle"></i> 儲存所有設定</button>
+              </form>
+        </div>
+    </div>
+
+    <!-- ==================== CONTEXT 2: GREEN STORE ==================== -->
+    <div id="context-store" class="hidden space-y-6 animate-fade-in">
+        <div class="flex gap-6 border-b border-white/10 px-2 overflow-x-auto">
+            <button onclick="navigateToStore('mainDashboard')" class="store-nav-item active sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-tachometer-alt mr-1"></i> 商店概況</button>
+            <button onclick="navigateToStore('subscribers')" class="store-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-users mr-1"></i> 訂閱者</button>
+            <button onclick="navigateToStore('shops')" class="store-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-store mr-1"></i> 店家管理</button>
+            <button onclick="navigateToStore('announcements')" class="store-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-bullhorn mr-1"></i> 公告</button>
+            <button onclick="navigateToStore('policies')" class="store-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-file-alt mr-1"></i> 政策</button>
+        </div>
+        <div id="store-content-area" class="min-h-[400px]"><div class="text-center text-slate-500 mt-20">正在連接商店數據庫...</div></div>
+    </div>
+  </main>
+
+  <script>
+    let sessionToken = localStorage.getItem('admin_session_token');
+    let storeAuthToken = localStorage.getItem('store_auth_token');
+    let currentCtx = 'personal';
+
+    // === UTILS ===
+    const Toast = Swal.mixin({
+      toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
+      background: '#1e293b', color: '#fff',
+      didOpen: (toast) => { toast.addEventListener('mouseenter', Swal.stopTimer); toast.addEventListener('mouseleave', Swal.resumeTimer); }
+    });
+
+    function updateLoader(percent, text) {
+      document.getElementById('loader-progress').style.width = percent + '%';
+      if(text) document.getElementById('loader-text').innerText = text;
+    }
+    
+    function addLog(msg) {
+        const t = document.getElementById('terminal-output');
+        const time = new Date().toLocaleTimeString('en-US', {hour12: false});
+        t.innerHTML += `<div><span class="text-slate-500">[${time}]</span> ${msg}</div>`;
+        t.scrollTop = t.scrollHeight;
+    }
+
+    // === LOGIN & AUTH ===
+    window.onload = async () => {
+      initCursor();
+      if (sessionToken) {
+        updateLoader(60, "VERIFYING TOKENS...");
+        try {
+          const res = await fetch(`${API_PERSONAL}?type=check_session&token=${sessionToken}`);
+          const data = await res.json();
+          if (data.status === 'success') { initSystem(); } else { throw new Error(); }
+        } catch (e) { sessionToken = null; login(); }
+      } else { login(); }
+    };
+
+    async function login() {
+      updateLoader(0, "AWAITING AUTH...");
+      const { value: formValues } = await Swal.fire({
+        title: 'SYSTEM LOGIN',
+        html: `<div class="space-y-4 my-4"><input id="swal-pass" class="swal2-input w-full" placeholder="Password" type="password"><div class="relative"><i class="fas fa-shield-alt absolute top-3 left-4 text-emerald-500"></i><input id="swal-2fa" class="swal2-input w-full pl-10" placeholder="2FA Code / Backup" type="text" maxlength="8" autocomplete="off"></div></div>`,
+        focusConfirm: false, confirmButtonText: 'AUTHENTICATE', confirmButtonColor: '#10b981', allowOutsideClick: false, backdrop: `rgba(0,0,0,0.9)`,
+        preConfirm: () => {
+            const p = document.getElementById('swal-pass').value, c = document.getElementById('swal-2fa').value;
+            if (!p || !c) Swal.showValidationMessage('Both fields required');
+            return [p, c];
+        }
+      });
+
+      if (formValues) {
+        const [password, code] = formValues;
+        updateLoader(30, "VALIDATING PERSONAL CORE...");
+        try {
+          // 1. Personal Login
+          const resPersonal = await fetch(API_PERSONAL, { method: 'POST', body: JSON.stringify({ action: 'login', payload: { password: password, code: code } }) });
+          const dataPersonal = await resPersonal.json();
+          
+          if (dataPersonal.status === 'success') {
+            sessionToken = dataPersonal.token;
+            localStorage.setItem('admin_session_token', sessionToken);
+            
+            // 2. Store Login (Silent)
+            updateLoader(70, "CONNECTING TO STORE...");
+            try {
+                const resStore = await fetch(API_STORE, { method: 'POST', body: JSON.stringify({ action: 'login', payload: { password: password } }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+                const dataStore = await resStore.json();
+                if (dataStore.status === 'success' || (dataStore.data && dataStore.data.token)) {
+                     storeAuthToken = dataStore.data ? dataStore.data.token : dataStore.token;
+                     localStorage.setItem('store_auth_token', storeAuthToken);
+                     addLog("Green Store authentication successful.");
+                } else { addLog("Store authentication failed."); }
+            } catch(e) { addLog("Store connection failed."); }
+
+            initSystem();
+          } else { Swal.fire({ icon: 'error', title: 'ACCESS DENIED', text: 'Invalid credentials or 2FA code' }).then(login); }
+        } catch(e) { Swal.fire({ icon: 'error', title: 'CONNECTION ERROR', text: 'Backend unreachable' }).then(login); }
+      }
+    }
+
+    function logout() { localStorage.removeItem('admin_session_token'); localStorage.removeItem('store_auth_token'); location.reload(); }
+
+    function initSystem() {
+        updateLoader(100, "SYSTEM ONLINE");
+        document.getElementById('status-dot').className = "w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981]";
+        document.getElementById('status-text').innerText = "SECURE";
+        document.getElementById('status-text').className = "text-emerald-400 font-bold font-mono";
+        setTimeout(() => {
+            document.getElementById('preloader').style.opacity = '0';
+            setTimeout(() => document.getElementById('preloader').style.display = 'none', 500);
+            initPersonalData();
+            navigateToStore('mainDashboard');
+        }, 800);
+    }
+
+    function switchContext(ctx) {
+        currentCtx = ctx;
+        document.querySelectorAll('.nav-pill').forEach(el => el.classList.remove('active'));
+        document.getElementById(`ctx-${ctx}`).classList.add('active');
+        document.getElementById('context-personal').classList.add('hidden');
+        document.getElementById('context-store').classList.add('hidden');
+        document.getElementById(`context-${ctx}`).classList.remove('hidden');
+    }
+
+    function switchPersonalTab(tab) {
+        ['dashboard','chat','cards','settings'].forEach(t => document.getElementById(`pview-${t}`).classList.add('hidden'));
+        document.getElementById(`pview-${tab}`).classList.remove('hidden');
+        document.querySelectorAll('#context-personal .sub-nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById(`ptab-${tab}`).classList.add('active');
+    }
+
+    async function callPersonalApi(action, payload = {}) {
+        if (!sessionToken) throw new Error("No Token");
+        addLog(`Exec: ${action}`);
+        const response = await fetch(API_PERSONAL, { method: 'POST', body: JSON.stringify({ action: action, token: sessionToken, payload: payload }) });
+        const result = await response.json();
+        if (result.status === 'error') throw new Error(result.message);
+        return result.data;
+    }
+
+    async function initPersonalData() {
+        initChart();
+        try {
+            const res = await fetch(`${API_PERSONAL}?type=api`);
+            const result = await res.json();
+            renderCards(result.data);
+            renderSettings(result.settings);
+            document.getElementById('dash-total-links').innerText = result.data.length;
+            addLog(`Data loaded. ${result.data.length} records.`);
+            loadChatSessions();
+        } catch(e) { addLog("Failed to load initial data."); }
+    }
+
+    async function loadChatSessions() {
+        try {
+            const sessions = await callPersonalApi('getChatSessions');
+            document.getElementById('dash-msg-count').innerText = sessions.length;
+            const container = document.getElementById('chat-sessions');
+            if(sessions.length === 0) { container.innerHTML = '<div class="text-center text-slate-500 mt-10">無訊息</div>'; return; }
+            container.innerHTML = sessions.map(s => `
+                <div class="p-3 border-b border-white/5 cursor-pointer hover:bg-white/5 transition" onclick="openChat('${s.sessionId}')">
+                    <div class="flex justify-between mb-1"><span class="font-bold text-emerald-400 text-xs truncate w-24">${s.sessionId}</span><span class="text-[10px] text-slate-500">${new Date(s.timestamp).toLocaleDateString()}</span></div>
+                    <div class="text-xs text-slate-400 truncate">${s.lastMessage}</div>
+                </div>`).join('');
+        } catch(e) {}
+    }
+    
+    let currentChatId = null;
+    async function openChat(sid) {
+        currentChatId = sid;
+        document.getElementById('current-chat-id').innerText = sid;
+        document.getElementById('reply-input').disabled = false; document.getElementById('reply-btn').disabled = false;
+        const container = document.getElementById('chat-history');
+        container.innerHTML = '<div class="text-center text-slate-500 mt-10">Loading...</div>';
+        try {
+            const history = await callPersonalApi('getChatHistory', { sessionId: sid });
+            container.innerHTML = history.map(m => `
+                <div class="${m.sender === 'Admin' ? 'self-end bg-emerald-600 text-white' : 'self-start bg-slate-700 text-slate-200'} max-w-[80%] rounded-xl px-4 py-2 text-sm shadow-md">
+                    ${m.message}<div class="text-[9px] opacity-60 text-right mt-1">${new Date(m.timestamp).toLocaleTimeString()}</div>
+                </div>`).join('');
+            container.scrollTop = container.scrollHeight;
+        } catch(e) {}
+    }
+
+    async function sendAdminReply() {
+        const input = document.getElementById('reply-input');
+        if(!input.value.trim() || !currentChatId) return;
+        try {
+            await callPersonalApi('adminReply', { sessionId: currentChatId, message: input.value.trim() });
+            input.value = ''; openChat(currentChatId);
+        } catch(e) { Toast.fire({icon:'error', title:'發送失敗'}); }
+    }
+
+    function renderCards(data) {
+        const list = document.getElementById('card-list'); list.innerHTML = '';
+        data.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'glass-panel p-4 rounded-xl flex items-center gap-4 group hover:border-emerald-500/30 transition';
+            div.setAttribute('data-id', item.id);
+            div.innerHTML = `<div class="handle cursor-grab text-slate-600 hover:text-white px-2"><i class="fas fa-grip-vertical"></i></div><img src="${item.imageUrl || ''}" class="w-12 h-12 rounded bg-black/50 object-cover border border-white/10" onerror="this.style.display='none'"><div class="flex-1 min-w-0"><div class="font-bold text-white truncate">${item.title}</div><div class="text-xs text-slate-500 truncate font-mono">${item.url}</div></div><div class="flex gap-2 opacity-0 group-hover:opacity-100 transition"><button onclick='editCard(${JSON.stringify(item)})' class="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg"><i class="fas fa-pen"></i></button><button onclick="deleteCard('${item.id}')" class="p-2 text-red-400 hover:bg-red-500/20 rounded-lg"><i class="fas fa-trash"></i></button></div>`;
+            list.appendChild(div);
+        });
+        new Sortable(list, { handle: '.handle', animation: 150, onEnd: () => { const ids = Array.from(list.children).map(el => el.getAttribute('data-id')); callPersonalApi('saveOrder', { ids: ids }).then(() => Toast.fire({ icon: 'success', title: '排序已儲存' })); }});
+    }
+
+    function editCard(item) {
+        document.getElementById('field-id').value = item.id; document.getElementById('field-title').value = item.title; document.getElementById('field-url').value = item.url; document.getElementById('field-imageUrl').value = item.imageUrl; document.getElementById('field-description').value = item.description;
+        if(item.imageUrl) { document.getElementById('img-preview').src = item.imageUrl; document.getElementById('img-preview').classList.remove('hidden'); }
+        document.getElementById('form-title').innerHTML = '<i class="fas fa-edit text-blue-400"></i> 編輯卡片';
+        document.getElementById('cancel-edit-btn').classList.remove('hidden'); document.getElementById('submit-btn').innerHTML = '更新卡片';
+        document.getElementById('pview-cards').scrollIntoView({ behavior: 'smooth' });
+    }
+    function resetCardForm() {
+        document.getElementById('cardForm').reset(); document.getElementById('field-id').value = ''; document.getElementById('img-preview').classList.add('hidden');
+        document.getElementById('form-title').innerHTML = '<i class="fas fa-plus-circle text-emerald-400"></i> 新增卡片';
+        document.getElementById('cancel-edit-btn').classList.add('hidden'); document.getElementById('submit-btn').innerHTML = '<i class="fas fa-save"></i> 儲存卡片';
+    }
+    document.getElementById('cardForm').addEventListener('submit', async function(e) {
+        e.preventDefault(); const id = document.getElementById('field-id').value;
+        try {
+            const d = await callPersonalApi(id ? 'updateData' : 'addData', { id: id, title: this.title.value, url: this.url.value, imageUrl: this.imageUrl.value, description: this.description.value });
+            renderCards(d); resetCardForm(); Toast.fire({icon:'success', title:'Saved'});
+        } catch(e) { Toast.fire({icon:'error', title:e.message}); }
+    });
+    document.getElementById('field-imageUrl').addEventListener('input', function() { const img = document.getElementById('img-preview'); if(this.value) { img.src = this.value; img.classList.remove('hidden'); } else img.classList.add('hidden'); });
+    function deleteCard(id) { Swal.fire({ title: 'Delete?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', background: '#1e293b' }).then(async (r) => { if(r.isConfirmed) { const d = await callPersonalApi('deleteData', {id}); renderCards(d); Toast.fire({icon:'success', title:'Deleted'}); } }); }
+
+    /* Personal: Settings (Expanded) */
+    function renderSettings(s) { const f = document.getElementById('settingsForm'); for (const k in s) { if(f[k]) f[k].value = s[k]; } }
+    document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+        e.preventDefault(); const fd = {}; new FormData(this).forEach((v,k)=> fd[k]=v);
+        await callPersonalApi('saveSettings', fd); Toast.fire({icon:'success', title:'Settings Saved'});
+    });
+
+    function initChart() {
+        const ctx = document.getElementById('trafficChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label: 'Visits', data: [12, 19, 3, 5, 2, 3, 15], borderColor: '#10b981', tension: 0.4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { display: false } } }
+        });
+    }
+
+    // === GREEN STORE LOGIC ===
+    async function callStoreApi(action, params = {}) {
+        if (!storeAuthToken) throw new Error("Store Token 缺失");
+        addLog(`Store: ${action}`);
+        const response = await fetch(API_STORE, { method: 'POST', body: JSON.stringify({ action, token: storeAuthToken, ...params }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+        const text = await response.text();
+        try {
+            const result = JSON.parse(text);
+            if (result.status === 'error') { if(result.message.includes('Token') || result.message.includes('過期')) { logout(); } throw new Error(result.message); }
+            return result.data;
+        } catch (e) { console.error("Store API Error:", text); throw e; }
+    }
+
+    async function navigateToStore(sectionId) {
+        document.querySelectorAll('.store-nav-item').forEach(i => i.classList.remove('active'));
+        const btn = Array.from(document.querySelectorAll('.store-nav-item')).find(b => b.onclick.toString().includes(sectionId));
+        if(btn) btn.classList.add('active');
+        const content = document.getElementById('store-content-area');
+        content.innerHTML = '<div class="flex justify-center mt-20"><div class="animate-spin h-10 w-10 border-4 border-emerald-500 rounded-full border-t-transparent"></div></div>';
+        try { content.innerHTML = await storeRenderers[sectionId](); } catch(e) { content.innerHTML = `<div class="p-6 bg-red-500/10 text-red-400 rounded-xl border border-red-500/20 text-center"><i class="fas fa-exclamation-triangle text-2xl mb-2"></i><br>載入失敗: ${e.message}</div>`; }
+    }
+
+    const storeRenderers = {
+        mainDashboard: async () => {
+            const data = await callStoreApi('getDashboardStats');
+            return `<div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="glass-panel p-6 rounded-2xl"><h2 class="text-sm font-bold text-slate-400 uppercase">總訂閱數</h2><p class="text-5xl font-bold text-emerald-400 mt-2">${data.totalSubscribers}</p></div><div class="glass-panel p-6 rounded-2xl"><h2 class="text-sm font-bold text-slate-400 uppercase">總店家數</h2><p class="text-5xl font-bold text-blue-400 mt-2">${data.totalShops}</p></div></div>`;
+        },
+        subscribers: async () => {
+            const data = await callStoreApi('getSubscribers');
+            return `<div class="glass-panel rounded-2xl overflow-hidden"><table class="w-full store-table"><thead class="bg-white/5"><tr><th>Email</th><th>訂閱時間</th><th>操作</th></tr></thead><tbody>${data.subscribers.map(s => `<tr><td>${s.email}</td><td>${new Date(s.timestamp).toLocaleDateString()}</td><td><button onclick="deleteSubscriber('${s.email}')" class="text-red-400 hover:text-red-300 transition"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table></div>`;
+        },
+        announcements: async () => {
+            const data = await callStoreApi('getAnnouncements');
+            return `<div class="glass-panel p-6 rounded-2xl"><label class="block text-emerald-400 font-bold mb-4 uppercase text-sm">公告內容</label><textarea id="announcementsEditor" class="glass-input w-full h-64 p-4 rounded-xl resize-none mb-4">${data.announcements}</textarea><button onclick="saveAnnouncements()" class="btn-primary px-6 py-2 rounded-lg text-white font-bold">更新公告</button></div>`;
+        },
+        policies: async () => {
+            const data = await callStoreApi('getPolicies');
+            return `<div class="grid grid-cols-1 md:grid-cols-2 gap-6"><div class="glass-panel p-6 rounded-2xl"><label class="block text-emerald-400 font-bold mb-4 uppercase text-sm">隱私權政策</label><textarea id="privacy" class="glass-input w-full h-64 p-4 rounded-xl resize-none mb-4">${data.privacy || ''}</textarea><button onclick="savePolicy('privacy')" class="btn-primary px-6 py-2 rounded-lg text-white font-bold">儲存</button></div><div class="glass-panel p-6 rounded-2xl"><label class="block text-indigo-400 font-bold mb-4 uppercase text-sm">免責聲明</label><textarea id="disclaimer" class="glass-input w-full h-64 p-4 rounded-xl resize-none mb-4">${data.disclaimer || ''}</textarea><button onclick="savePolicy('disclaimer')" class="btn-primary px-6 py-2 rounded-lg text-white font-bold">儲存</button></div></div>`;
+        },
+        shops: async () => {
+            const data = await callStoreApi('getShops');
+            return `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold text-white">店家列表</h2><button onclick="openShopForm()" class="btn-primary px-4 py-2 rounded-lg text-white font-bold"><i class="fas fa-plus mr-2"></i> 新增店家</button></div><div class="glass-panel rounded-2xl overflow-hidden overflow-x-auto"><table class="w-full store-table min-w-[600px]"><thead class="bg-white/5"><tr><th>店家名稱 (繁中)</th><th>類型</th><th>操作</th></tr></thead><tbody>${data.shops.map(s => `<tr><td class="font-bold text-emerald-400">${s['name_zh-TW']}</td><td><span class="px-2 py-1 bg-white/10 rounded text-xs">${s['type_zh-TW']}</span></td><td class="space-x-2"><button onclick="openShopForm('${s.id}')" class="text-blue-400 hover:text-blue-300"><i class="fas fa-edit"></i></button><button onclick="deleteShop('${s.id}')" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button><button onclick="recommendShop('${s.id}')" class="text-purple-400 hover:text-purple-300" title="發送推薦信"><i class="fas fa-envelope"></i></button></td></tr>`).join('')}</tbody></table></div>`;
+        }
+    };
+
+    async function deleteSubscriber(email) { if(!(await Swal.fire({title:'移除訂閱者?', icon:'warning', showCancelButton:true, background:'#1e293b'})).isConfirmed) return; await callStoreApi('deleteSubscriber', { email }); navigateToStore('subscribers'); }
+    async function saveAnnouncements() { const content = document.getElementById('announcementsEditor').value; await callStoreApi('setAnnouncements', { payload: { content } }); Toast.fire({icon:'success', title:'公告已更新'}); }
+    async function savePolicy(key) { const value = document.getElementById(key).value; await callStoreApi('setPolicy', { payload: { key, value } }); Toast.fire({icon:'success', title:'政策已更新'}); }
+    async function deleteShop(id) { if(!(await Swal.fire({title:'刪除店家?', icon:'warning', showCancelButton:true, background:'#1e293b'})).isConfirmed) return; await callStoreApi('deleteShop', { id }); navigateToStore('shops'); }
+    async function recommendShop(shopId) { if(!(await Swal.fire({title:'發送推薦信?', text:'這將會寄信給所有訂閱者', icon:'question', showCancelButton:true, background:'#1e293b'})).isConfirmed) return; Toast.fire({icon:'info', title:'正在發送...'}); await callStoreApi('sendRecommendation', { shopId }); Toast.fire({icon:'success', title:'發送成功'}); }
+
+    async function openShopForm(shopId = null) {
+        const modal = document.getElementById('storeModal'), body = document.getElementById('storeModalBody'), title = document.getElementById('storeModalTitle'), saveBtn = document.getElementById('storeModalSaveBtn');
+        body.innerHTML = '<div class="text-center py-10"><div class="animate-spin h-8 w-8 border-4 border-white rounded-full border-t-transparent mx-auto"></div></div>';
+        modal.classList.remove('hidden');
+        const shop = shopId ? (await callStoreApi('getShopById', { id: shopId })).shop : {};
+        title.innerText = shopId ? '編輯店家' : '新增店家';
+        body.innerHTML = `<form id="shopForm" class="space-y-4"><input type="hidden" name="id" value="${shop.id || ''}"><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="text-xs text-slate-400">名稱 (繁中)</label><input type="text" name="name_zh-TW" class="glass-input w-full p-2 rounded" value="${shop['name_zh-TW'] || ''}" required></div><div><label class="text-xs text-slate-400">名稱 (English)</label><input type="text" name="name_en" class="glass-input w-full p-2 rounded" value="${shop['name_en'] || ''}"></div><div><label class="text-xs text-slate-400">類型 (繁中)</label><input type="text" name="type_zh-TW" class="glass-input w-full p-2 rounded" value="${shop['type_zh-TW'] || ''}"></div><div><label class="text-xs text-slate-400">類型 (English)</label><input type="text" name="type_en" class="glass-input w-full p-2 rounded" value="${shop['type_en'] || ''}"></div><div><label class="text-xs text-slate-400">地址 (繁中)</label><input type="text" name="address_zh-TW" class="glass-input w-full p-2 rounded" value="${shop['address_zh-TW'] || ''}"></div><div><label class="text-xs text-slate-400">地址 (English)</label><input type="text" name="address_en" class="glass-input w-full p-2 rounded" value="${shop['address_en'] || ''}"></div><div><label class="text-xs text-slate-400">電話</label><input type="text" name="phone" class="glass-input w-full p-2 rounded" value="${shop.phone || ''}"></div><div><label class="text-xs text-slate-400">網站</label><input type="text" name="website" class="glass-input w-full p-2 rounded" value="${shop.website || ''}"></div><div><label class="text-xs text-slate-400">Lat</label><input type="text" name="lat" class="glass-input w-full p-2 rounded" value="${shop.lat || ''}"></div><div><label class="text-xs text-slate-400">Lng</label><input type="text" name="lng" class="glass-input w-full p-2 rounded" value="${shop.lng || ''}"></div></div><div class="space-y-4 pt-4 border-t border-white/10"><div><label class="text-xs text-slate-400">簡述 (繁中)</label><textarea name="description_zh-TW" class="glass-input w-full p-2 rounded h-20">${shop['description_zh-TW'] || ''}</textarea></div><div><label class="text-xs text-slate-400">詳述 (繁中)</label><textarea name="longDescription_zh-TW" class="glass-input w-full p-2 rounded h-20">${shop['longDescription_zh-TW'] || ''}</textarea></div><div><label class="text-xs text-slate-400">Description (EN)</label><textarea name="description_en" class="glass-input w-full p-2 rounded h-20">${shop['description_en'] || ''}</textarea></div><div><label class="text-xs text-slate-400">Details (EN)</label><textarea name="longDescription_en" class="glass-input w-full p-2 rounded h-20">${shop['longDescription_en'] || ''}</textarea></div></div></form>`;
+        saveBtn.onclick = async () => { const form = document.getElementById('shopForm'); const formData = new FormData(form); const shopData = Object.fromEntries(formData.entries()); saveBtn.innerText = '儲存中...'; try { await callStoreApi('saveShop', { shop: shopData }); closeStoreModal(); Toast.fire({icon:'success', title:'店家已儲存'}); navigateToStore('shops'); } catch(e) { Toast.fire({icon:'error', title:'儲存失敗'}); } finally { saveBtn.innerText = '儲存'; } };
+    }
+    function closeStoreModal() { document.getElementById('storeModal').classList.add('hidden'); }
+    function initCursor() { const dot = document.querySelector('.cursor-dot'), outline = document.querySelector('.cursor-outline'); window.addEventListener('mousemove', e => { dot.style.left=`${e.clientX}px`; dot.style.top=`${e.clientY}px`; outline.animate({ left: `${e.clientX}px`, top: `${e.clientY}px` }, { duration: 500, fill: "forwards" }); }); document.addEventListener('mouseover', e => { if(e.target.closest('.cursor-hover') || e.target.tagName === 'BUTTON' || e.target.tagName === 'A') { document.body.classList.add('hovering'); } else { document.body.classList.remove('hovering'); } }); }
+  </script>
+</body>
+</html>
