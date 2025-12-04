@@ -8,6 +8,9 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- EmailJS SDK -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  
   <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
@@ -25,7 +28,7 @@
     .swal2-container { z-index: 100000 !important; }
     .swal2-popup { background: #0f172a !important; border: 1px solid #334155; box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
     .swal2-title { color: #fff !important; font-family: 'JetBrains Mono', monospace; }
-    .swal2-html-container { color: #cbd5e1 !important; }
+    .swal2-html-container { color: #cbd5e1 !important; text-align: left !important; }
     .swal2-input { background: #1e293b !important; color: #fff !important; border: 1px solid #475569 !important; text-align: center; letter-spacing: 2px; }
     .swal2-input:focus { border-color: #10b981 !important; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important; }
     
@@ -83,6 +86,11 @@
   <script>
     const API_PERSONAL = "https://script.google.com/macros/s/AKfycbw1J5DNcuCTfTGeQXhosPZYOW0MAfXDCNBHIi7rQTQMw7Nrfieuc4XEw0diuQkQ6XdUPg/exec";
     const API_STORE = "https://script.google.com/macros/s/AKfycbzVebFWCKnDEiJOc1bJKtc5qIHifZceuXssrwb7Zir6FYOQLokhgzNoFeLZkFdLK7f5oA/exec";
+    
+    // === EMAILJS CONFIG (PLEASE FILL THESE) ===
+    const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID"; // e.g., 'service_xxxxx'
+    const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID"; // e.g., 'template_xxxxx'
+    const EMAILJS_PUBLIC_KEY = "YOUR_PUBLIC_KEY"; // e.g., 'user_xxxxx'
   </script>
   <!-- ======================================================= -->
 
@@ -278,7 +286,7 @@
     let sessionToken = localStorage.getItem('admin_session_token');
     let storeAuthToken = localStorage.getItem('store_auth_token');
     let currentCtx = 'personal';
-    let currentShopList = []; // [NEW] 全域變數，用來快取商店資料
+    let currentShopList = []; 
 
     // === UTILS ===
     const Toast = Swal.mixin({
@@ -299,9 +307,47 @@
         t.scrollTop = t.scrollHeight;
     }
 
+    // === HELPERS FOR CORS ERROR ===
+    function showCorsHelp(isStore = false) {
+        Swal.fire({
+            icon: 'warning',
+            title: '⚠️ 連線被阻擋 (CORS Error)',
+            html: `
+                <div class="text-sm text-slate-300 space-y-3">
+                    <p>這通常是因為 Google Apps Script 的權限設定過於嚴格。</p>
+                    <p class="font-bold text-emerald-400">請執行以下修復步驟：</p>
+                    <ol class="list-decimal list-inside space-y-1 text-left bg-black/30 p-3 rounded-lg">
+                        <li>開啟你的 <b>${isStore ? '綠色商店' : '個人核心'}</b> GAS 專案</li>
+                        <li>點擊右上角 <span class="bg-blue-600 px-1 rounded text-xs">部署</span> -> <span class="bg-slate-600 px-1 rounded text-xs">管理部署</span></li>
+                        <li>點擊編輯 (筆形圖標)</li>
+                        <li>將 <b>誰可以存取</b> 改為 <b class="text-red-400">所有人 (Anyone)</b></li>
+                        <li>點擊 <b>部署</b> 更新</li>
+                    </ol>
+                </div>
+            `,
+            background: '#0f172a',
+            color: '#fff',
+            confirmButtonText: '我了解了',
+            confirmButtonColor: '#10b981'
+        });
+    }
+
     // === LOGIN & AUTH ===
     window.onload = async () => {
       initCursor();
+      // Initialize EmailJS
+      if(EMAILJS_PUBLIC_KEY !== "YOUR_PUBLIC_KEY") {
+          try {
+              emailjs.init(EMAILJS_PUBLIC_KEY);
+              addLog("EmailJS SDK initialized.");
+          } catch(e) {
+              console.error("EmailJS Init Error", e);
+              addLog("EmailJS Init Failed.");
+          }
+      } else {
+          addLog("WARNING: EmailJS Public Key not set.");
+      }
+
       if (sessionToken) {
         updateLoader(60, "VERIFYING TOKENS...");
         try {
@@ -330,7 +376,12 @@
         updateLoader(30, "VALIDATING PERSONAL CORE...");
         try {
           // 1. Personal Login
-          const resPersonal = await fetch(API_PERSONAL, { method: 'POST', body: JSON.stringify({ action: 'login', payload: { password: password, code: code } }) });
+          // Simplified header to avoid preflight issues if possible
+          const resPersonal = await fetch(API_PERSONAL, { 
+              method: 'POST', 
+              body: JSON.stringify({ action: 'login', payload: { password: password, code: code } }),
+              headers: { 'Content-Type': 'text/plain' }
+          });
           const dataPersonal = await resPersonal.json();
           
           if (dataPersonal.status === 'success') {
@@ -340,18 +391,34 @@
             // 2. Store Login (Silent)
             updateLoader(70, "CONNECTING TO STORE...");
             try {
-                const resStore = await fetch(API_STORE, { method: 'POST', body: JSON.stringify({ action: 'login', payload: { password: password } }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+                const resStore = await fetch(API_STORE, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ action: 'login', payload: { password: password } }), 
+                    headers: { 'Content-Type': 'text/plain' }
+                });
                 const dataStore = await resStore.json();
                 if (dataStore.status === 'success' || (dataStore.data && dataStore.data.token)) {
                      storeAuthToken = dataStore.data ? dataStore.data.token : dataStore.token;
                      localStorage.setItem('store_auth_token', storeAuthToken);
                      addLog("Green Store authentication successful.");
                 } else { addLog("Store authentication failed."); }
-            } catch(e) { addLog("Store connection failed."); }
+            } catch(e) { 
+                console.error("Store Login Error:", e);
+                addLog("Store connection failed (CORS?)."); 
+                // Don't block login if store fails, just log it
+            }
 
             initSystem();
           } else { Swal.fire({ icon: 'error', title: 'ACCESS DENIED', text: 'Invalid credentials or 2FA code' }).then(login); }
-        } catch(e) { Swal.fire({ icon: 'error', title: 'CONNECTION ERROR', text: 'Backend unreachable' }).then(login); }
+        } catch(e) { 
+            console.error("Login Error:", e);
+            if(e.message.includes('Failed to fetch')) {
+                showCorsHelp(false);
+                setTimeout(login, 2000);
+            } else {
+                Swal.fire({ icon: 'error', title: 'CONNECTION ERROR', text: 'Backend unreachable' }).then(login); 
+            }
+        }
       }
     }
 
@@ -389,10 +456,22 @@
     async function callPersonalApi(action, payload = {}) {
         if (!sessionToken) throw new Error("No Token");
         addLog(`Exec: ${action}`);
-        const response = await fetch(API_PERSONAL, { method: 'POST', body: JSON.stringify({ action: action, token: sessionToken, payload: payload }) });
-        const result = await response.json();
-        if (result.status === 'error') throw new Error(result.message);
-        return result.data;
+        try {
+            const response = await fetch(API_PERSONAL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: action, token: sessionToken, payload: payload }),
+                headers: { 'Content-Type': 'text/plain' }
+            });
+            const result = await response.json();
+            if (result.status === 'error') throw new Error(result.message);
+            return result.data;
+        } catch(e) {
+            if(e.message.includes('Failed to fetch')) {
+                showCorsHelp(false);
+                throw new Error("API Connection Blocked (CORS)");
+            }
+            throw e;
+        }
     }
 
     async function initPersonalData() {
@@ -502,13 +581,30 @@
     async function callStoreApi(action, params = {}) {
         if (!storeAuthToken) throw new Error("Store Token 缺失");
         addLog(`Store: ${action}`);
-        const response = await fetch(API_STORE, { method: 'POST', body: JSON.stringify({ action, token: storeAuthToken, ...params }), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-        const text = await response.text();
         try {
-            const result = JSON.parse(text);
-            if (result.status === 'error') { if(result.message.includes('Token') || result.message.includes('過期')) { logout(); } throw new Error(result.message); }
-            return result.data;
-        } catch (e) { console.error("Store API Error:", text); throw e; }
+            const response = await fetch(API_STORE, { 
+                method: 'POST', 
+                body: JSON.stringify({ action, token: storeAuthToken, ...params }), 
+                headers: { 'Content-Type': 'text/plain' }
+            });
+            const text = await response.text();
+            try {
+                const result = JSON.parse(text);
+                
+                // [NEW] Debug Log for API Response
+                console.log(`%c[API Response] ${action}`, 'color: #3b82f6; font-weight: bold;', result);
+
+                if (result.status === 'error') { if(result.message.includes('Token') || result.message.includes('過期')) { logout(); } throw new Error(result.message); }
+                return result.data;
+            } catch (e) { console.error("Store API Error:", text); throw e; }
+        } catch (e) {
+            console.error("Store API Fetch Error:", e);
+            if(e.message.includes('Failed to fetch')) {
+                showCorsHelp(true);
+                throw new Error("API Connection Blocked (CORS)");
+            }
+            throw e;
+        }
     }
 
     async function navigateToStore(sectionId) {
@@ -549,55 +645,77 @@
     async function savePolicy(key) { const value = document.getElementById(key).value; await callStoreApi('setPolicy', { payload: { key, value } }); Toast.fire({icon:'success', title:'政策已更新'}); }
     async function deleteShop(id) { if(!(await Swal.fire({title:'刪除店家?', icon:'warning', showCancelButton:true, background:'#1e293b'})).isConfirmed) return; await callStoreApi('deleteShop', { id }); navigateToStore('shops'); }
     
-    // [NEW] 升級版推薦信發送邏輯
+    // [NEW] 升級版推薦信發送邏輯 - EmailJS Version
     async function recommendShop(shopId) { 
+        if(EMAILJS_PUBLIC_KEY === "YOUR_PUBLIC_KEY") {
+            Swal.fire({ icon: 'error', title: '設定錯誤', text: '請先在程式碼中填入 EmailJS 的 Service ID, Template ID 和 Public Key', background: '#1e293b', color: '#fff' });
+            return;
+        }
+
         try {
-            // 1. 找到店家資料 (使用 String 比較以防類型不符)
+            // 1. 找到店家資料
             const shop = currentShopList.find(s => String(s.id) === String(shopId));
-            
-            if(!shop) {
-                console.error("Shop not found in cache:", shopId, currentShopList);
-                throw new Error("找不到店家資料，請重新整理頁面");
-            }
+            if(!shop) throw new Error("找不到店家資料");
 
             // 2. 建立預覽 HTML
             const previewHtml = `
-                <div class="text-left bg-slate-800 p-4 rounded-lg border border-white/10 mt-4">
-                    <div class="text-emerald-400 font-bold text-lg mb-1">${shop['name_zh-TW']}</div>
-                    <div class="text-slate-400 text-xs mb-3"><i class="fas fa-map-marker-alt mr-1"></i> ${shop['address_zh-TW'] || '地址未設定'}</div>
-                    <div class="text-slate-300 text-sm bg-black/30 p-3 rounded italic">
-                        "${(shop['description_zh-TW'] || '暫無描述').substring(0, 80)}..."
+                <div class="text-left bg-slate-800 p-6 rounded-lg border border-white/10 mt-4 space-y-4">
+                    <div class="border-b border-white/10 pb-2 mb-2">
+                        <span class="text-slate-500 text-xs uppercase tracking-widest">Email Preview</span>
                     </div>
+                    <div><span class="text-emerald-400 font-bold text-sm block mb-1">店名:</span><div class="text-white text-lg font-bold">${shop['name_zh-TW']}</div></div>
+                    <div><span class="text-emerald-400 font-bold text-sm block mb-1">描述:</span><div class="text-slate-300 text-sm bg-black/30 p-3 rounded italic whitespace-pre-wrap">"${(shop['description_zh-TW'] || '暫無描述').substring(0, 150)}..."</div></div>
                 </div>
-                <p class="text-slate-400 text-xs mt-4">這將會寄信給所有訂閱者，確定發送？</p>
+                <p class="text-slate-400 text-xs mt-4 text-center">確定透過 EmailJS 發送？</p>
             `;
-
-            // 3. 顯示預覽確認框
+            
             if(!(await Swal.fire({
-                title: '📢 發送推薦信',
+                title: '📢 發送推薦信 (EmailJS)',
                 html: previewHtml,
                 icon: 'info',
                 showCancelButton: true,
                 confirmButtonText: '確認發送',
                 confirmButtonColor: '#a855f7',
-                cancelButtonText: '再等等',
                 background: '#0f172a',
-                color: '#fff'
+                color: '#fff',
+                width: '600px',
+                showLoaderOnConfirm: true,
+                preConfirm: async () => {
+                    try {
+                        // 3. 獲取訂閱者名單 (從後端獲取)
+                        const subData = await callStoreApi('getSubscribers');
+                        const subscribers = subData.subscribers;
+                        
+                        if(!subscribers || subscribers.length === 0) throw new Error("沒有訂閱者");
+
+                        // 4. 準備 EmailJS 參數
+                        // 注意：這裡演示發送給第一位訂閱者作為測試，避免免費版額度瞬間用完
+                        // 實戰中你可能需要一個迴圈，但要小心 Rate Limit
+                        const targetEmail = subscribers[0].email; // 測試用：只寄給第一個人
+                        
+                        const templateParams = {
+                            to_email: targetEmail,
+                            to_name: "Subscriber", // 或者訂閱者的名字
+                            shop_name: shop['name_zh-TW'],
+                            shop_address: shop['address_zh-TW'],
+                            shop_description: shop['description_zh-TW'],
+                            shop_website: shop['website']
+                        };
+
+                        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+                        return { count: 1, email: targetEmail }; // 回傳發送數量
+                    } catch (error) {
+                        Swal.showValidationMessage(`發送失敗: ${error.message || error.text}`);
+                        return false;
+                    }
+                }
             })).isConfirmed) return;
 
-            Toast.fire({icon:'info', title:'正在發送...'});
-            // 使用 shop.id 確保傳遞給 API 的型別正確
-            await callStoreApi('sendRecommendation', { shopId: shop.id });
-            Toast.fire({icon:'success', title:'發送成功'});
+            Toast.fire({icon:'success', title:'已成功發送測試郵件'});
+
         } catch (e) {
             console.error("Recommend Error:", e);
-            Swal.fire({
-                icon: 'error',
-                title: '發送失敗',
-                text: e.message,
-                background: '#1e293b',
-                color: '#fff'
-            });
+            Swal.fire({ icon: 'error', title: '錯誤', text: e.message, background: '#1e293b', color: '#fff' });
         }
     }
 
