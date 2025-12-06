@@ -100,8 +100,6 @@
   <script>
     const API_PERSONAL = "https://script.google.com/macros/s/AKfycbw1J5DNcuCTfTGeQXhosPZYOW0MAfXDCNBHIi7rQTQMw7Nrfieuc4XEw0diuQkQ6XdUPg/exec";
     const API_STORE = "https://script.google.com/macros/s/AKfycbzVebFWCKnDEiJOc1bJKtc5qIHifZceuXssrwb7Zir6FYOQLokhgzNoFeLZkFdLK7f5oA/exec";
-    
-    // [Updated] Tail Core API URL from user
     const API_SERVICE = "https://script.google.com/macros/s/AKfycbxm6I0lCN82Tnt3gDWPNKptKO9682Jeik-XSJlb9YTGTG4HkY5d-GfwK75HVHWVhQP8/exec";
     
     // === EMAILJS CONFIG ===
@@ -354,8 +352,11 @@
   <script>
     let sessionToken = localStorage.getItem('admin_session_token');
     let storeAuthToken = localStorage.getItem('store_auth_token');
-    // We assume the main password is also used for the Service API
-    let globalPassword = ""; 
+    
+    // [Updated] Authentication State
+    let globalPassword = "";       // Stores the master password user entered (index@...)
+    let serviceCorePassword = "";  // Stores the working password for Service Core (could be admin)
+    
     let currentCtx = 'personal';
     let currentShopList = []; 
     let currentOrdersData = [];
@@ -388,9 +389,6 @@
 
       if (sessionToken) {
         updateLoader(60, "VERIFYING TOKENS...");
-        // For re-authentication to get the password for Service API, we might need a prompt if session is restored
-        // But for UX, we will let user login again if they access Service API, or try to operate without pswd (likely fail).
-        // Best approach: If we have token, we just init. If Service API fails due to missing password, we prompt.
         try {
           const res = await fetch(`${API_PERSONAL}?type=check_session&token=${sessionToken}`);
           const data = await res.json();
@@ -414,7 +412,7 @@
 
       if (formValues) {
         const [password, code] = formValues;
-        globalPassword = password; // Store for Service API usage
+        globalPassword = password; // [CRITICAL] Save master password
         updateLoader(30, "VALIDATING...");
         try {
           // 1. Personal Login
@@ -465,12 +463,12 @@
         ['personal','store','service'].forEach(c => document.getElementById(`context-${c}`).classList.add('hidden'));
         document.getElementById(`context-${ctx}`).classList.remove('hidden');
         if(ctx === 'service') {
-             // If password is lost (e.g. refresh), prompt for it
+             // Smart Auth Handling for Service Core
+             // If we don't have the password (e.g. page refreshed), ask for it
              if(!globalPassword) {
                  Swal.fire({
-                     title: '需要驗證', text: '請輸入尾刀核心管理密碼', input: 'password', confirmButtonText: '解鎖', confirmButtonColor: '#a855f7',
-                     background: '#1e293b', color: '#fff',
-                     inputAttributes: { autocapitalize: 'off', autocorrect: 'off' }
+                     title: '需要驗證', text: '請輸入密碼', input: 'password', confirmButtonText: '解鎖', confirmButtonColor: '#a855f7',
+                     background: '#1e293b', color: '#fff'
                  }).then(res => {
                      if(res.value) { globalPassword = res.value; serviceFetchOrders(); }
                      else switchContext('personal');
@@ -611,20 +609,14 @@
         if(tab === 'boosters') fetchServiceBoosters();
     }
 
+    // [UPDATED] Smart API Call with Auto-Fallback
     async function callServiceApi(data, callback) {
-        // [New Logic] Auto-try 'admin' if globalPassword is unset (first access) or if previous attempt failed
-        let passwordToUse = globalPassword;
-
-        // If no password set, try "admin" first based on user instruction
-        if (!passwordToUse) {
-            passwordToUse = "admin";
-            globalPassword = "admin"; // Temporarily set to try
-        }
-
-        const req = {...data, password: passwordToUse};
+        // 1. Decide which password to use
+        // Priority: serviceCorePassword (cached success) -> globalPassword (user entered) -> "admin" (fallback)
+        let passwordToUse = serviceCorePassword || globalPassword || "admin";
         
+        const req = {...data, password: passwordToUse};
         try {
-            // [Fix 1] Add explicit Content-Type
             const res = await fetch(API_SERVICE, { 
                 method: 'POST', 
                 body: JSON.stringify(req),
@@ -633,46 +625,40 @@
             const json = await res.json();
             
             if(json.status === 'success') {
+                // Success! Cache this password if it's new
+                if (!serviceCorePassword) serviceCorePassword = passwordToUse;
                 callback(json);
             } else {
-                // [Fix 2 & 3] Smart Auth Failure Handling
+                // Handle Auth Failed
                 if (json.message === 'Auth Failed' || json.message === 'Password Incorrect' || json.message.includes('密碼')) {
                     
-                    // If we just tried "admin" automatically and it failed, clear it and Prompt user
-                    if (globalPassword === 'admin') {
-                        globalPassword = ""; // Clear invalid default
+                    // If we haven't tried 'admin' yet, try it silently now
+                    if (passwordToUse !== 'admin') {
+                        console.log("Main password failed for Service Core, auto-retrying with default 'admin'...");
+                        // Recursive retry with hardcoded 'admin'
+                        const retryReq = {...data, password: "admin"};
+                        const retryRes = await fetch(API_SERVICE, { method: 'POST', body: JSON.stringify(retryReq), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+                        const retryJson = await retryRes.json();
                         
-                        const { value: pass } = await Swal.fire({
-                             title: '需要驗證', 
-                             text: '預設密碼驗證失敗，請輸入正確的管理員密碼', 
-                             input: 'password', 
-                             confirmButtonText: '解鎖', 
-                             confirmButtonColor: '#a855f7',
-                             background: '#1e293b', 
-                             color: '#fff',
-                             inputAttributes: { autocapitalize: 'off', autocorrect: 'off' }
-                        });
-                        
-                        if(pass) {
-                            globalPassword = pass;
-                            // Retry recursively with new password
-                            callServiceApi(data, callback);
+                        if (retryJson.status === 'success') {
+                            serviceCorePassword = "admin"; // Cache success
+                            callback(retryJson);
+                            return; // Success, exit
                         }
-                    } else {
-                        // If user entered something else and it failed
-                        globalPassword = ""; 
-                        Toast.fire({icon:'error', title: '驗證失敗', text: '密碼錯誤，請重新嘗試'});
                     }
+                    
+                    // If we reach here, both main password AND admin failed.
+                    // Reset cached password to force prompt next time
+                    serviceCorePassword = ""; 
+                    globalPassword = ""; 
+                    Toast.fire({icon:'error', title: '驗證失敗', text: '無法連接服務核心，請重新登入'});
                 } else {
                     throw new Error(json.message || 'Service API Error');
                 }
             }
         } catch(err) { 
             console.error(err); 
-            // Only show generic error if it wasn't an auth failure handled above
-            if (globalPassword) {
-                Toast.fire({icon:'error', title: 'Service 連線錯誤', text: err.message}); 
-            }
+            Toast.fire({icon:'error', title: '連線錯誤', text: err.message}); 
             callback({status: 'error'}); 
         }
     }
