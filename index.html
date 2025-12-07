@@ -61,6 +61,9 @@
     .btn-purple { background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%); box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3); transition: all 0.3s; border: none; }
     .btn-purple:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(168, 85, 247, 0.4); }
     
+    .btn-blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); transition: all 0.3s; border: none; }
+    .btn-blue:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4); }
+
     /* 導航與列表 */
     .nav-pill { color: #94a3b8; transition: all 0.3s; border-radius: 0.5rem; }
     .nav-pill:hover { color: white; background: rgba(255,255,255,0.05); }
@@ -283,15 +286,40 @@
     <!-- ==================== CONTEXT 3: SERVICE CORE (WEIDAO) ==================== -->
     <div id="context-service" class="hidden space-y-6 animate-fade-in">
         <div class="flex gap-6 border-b border-white/10 px-2 overflow-x-auto">
+            <!-- New: Dashboard Tab -->
+            <button onclick="switchServiceTab('dashboard')" id="stab-dashboard" class="service-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-chart-line mr-1"></i> 儀表板</button>
             <button onclick="switchServiceTab('orders')" id="stab-orders" class="service-nav-item sub-nav-item active pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-list-ul mr-1"></i> 訂單管理</button>
             <button onclick="switchServiceTab('games')" id="stab-games" class="service-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-gamepad mr-1"></i> 遊戲設定</button>
             <button onclick="switchServiceTab('boosters')" id="stab-boosters" class="service-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-users mr-1"></i> 大神管理</button>
+            <!-- New: Coupons Tab -->
+            <button onclick="switchServiceTab('coupons')" id="stab-coupons" class="service-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-ticket-alt mr-1"></i> 優惠碼</button>
+            <!-- New: Settings Tab -->
+            <button onclick="switchServiceTab('settings')" id="stab-settings" class="service-nav-item sub-nav-item pb-3 text-sm font-medium whitespace-nowrap"><i class="fas fa-cog mr-1"></i> 系統設定</button>
         </div>
         
+        <!-- S-View: Dashboard (New) -->
+        <div id="sview-dashboard" class="hidden space-y-6">
+            <h2 class="text-xl font-bold text-white pl-3 border-l-4 border-purple-500">營收概況</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Total Revenue -->
+                <div class="glass-panel p-8 flex flex-col items-center justify-center rounded-2xl">
+                    <p class="text-slate-400 text-sm font-bold uppercase tracking-widest mb-2">總累積營收</p>
+                    <div class="text-4xl md:text-5xl font-bold text-emerald-400 font-mono" id="serviceTotalRevenue">$0</div>
+                </div>
+                <!-- Game Distribution Chart -->
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="text-center text-slate-400 text-sm font-bold uppercase tracking-widest mb-4">遊戲營收分佈</h3>
+                    <div class="h-64 flex justify-center">
+                        <canvas id="serviceRevenueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- S-View: Orders -->
         <div id="sview-orders" class="space-y-6">
             <div class="flex justify-between items-center">
-                <h2 class="text-xl font-bold text-white border-l-4 border-purple-500 pl-3">即時訂單</h2>
+                <h2 class="text-xl font-bold text-white border-l-4 border-blue-500 pl-3">即時訂單</h2>
                 <button onclick="serviceFetchOrders()" class="btn-primary px-4 py-2 rounded-lg text-xs md:text-sm flex items-center"><i class="fas fa-sync-alt mr-2"></i> 刷新</button>
             </div>
             <div class="glass-panel rounded-2xl overflow-hidden table-container">
@@ -346,6 +374,37 @@
             </div>
             <div id="serviceBoosterList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </div>
+
+        <!-- S-View: Coupons (New) -->
+        <div id="sview-coupons" class="hidden space-y-6">
+            <div class="glass-panel p-6 rounded-2xl">
+                <h3 class="font-bold mb-4 text-pink-400">新增優惠碼</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input id="c-code" type="text" placeholder="代碼 (e.g. OPENING)" class="glass-input p-3 w-full rounded-lg uppercase">
+                    <input id="c-value" type="number" placeholder="折抵金額 (e.g. 50)" class="glass-input p-3 w-full rounded-lg">
+                    <label class="flex items-center p-3 glass-input rounded-lg cursor-pointer">
+                        <input id="c-active" type="checkbox" checked> <span class="text-sm ml-2">啟用中</span>
+                    </label>
+                    <button onclick="saveServiceCoupon()" class="btn-primary rounded-lg text-white font-bold">新增</button>
+                </div>
+            </div>
+            <div id="serviceCouponList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
+
+        <!-- S-View: Settings (New) -->
+        <div id="sview-settings" class="hidden space-y-6">
+            <div class="glass-panel p-6 rounded-2xl">
+                <h3 class="font-bold mb-6 text-blue-400 border-b border-white/10 pb-2">系統參數設定</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                     <div><label class="text-xs text-slate-400 block mb-2 font-bold uppercase tracking-wider">加急費率 (例如 0.3 = 30%)</label><input id="set-priority" type="number" step="0.1" class="glass-input w-full p-3 rounded-lg"></div>
+                     <div><label class="text-xs text-slate-400 block mb-2 font-bold uppercase tracking-wider">直播費率 (例如 0.2 = 20%)</label><input id="set-stream" type="number" step="0.1" class="glass-input w-full p-3 rounded-lg"></div>
+                </div>
+                <div class="mb-6"><label class="text-xs text-slate-400 block mb-2 font-bold uppercase tracking-wider">服務條款 (HTML)</label><textarea id="set-terms" class="glass-input w-full p-4 h-48 rounded-lg font-mono text-sm resize-none" placeholder="輸入條款內容..."></textarea></div>
+                <div class="mb-6"><label class="text-xs text-slate-400 block mb-2 font-bold uppercase tracking-wider">付款須知 / 匯款資訊</label><textarea id="set-payment" class="glass-input w-full p-4 h-32 rounded-lg resize-none" placeholder="例如: 轉帳帳號..."></textarea></div>
+                <button onclick="saveServiceSettings()" class="btn-blue w-full py-3 rounded-lg text-white text-lg font-bold"><i class="fas fa-save mr-2"></i> 更新設定</button>
+            </div>
+        </div>
+
     </div>
   </main>
 
@@ -362,6 +421,7 @@
     let currentOrdersData = [];
     let gameCache = [];
     let currentChatOrderId = "";
+    let serviceDashboardChart = null; // Chart instance
 
     // === UTILS ===
     const Toast = Swal.mixin({
@@ -601,12 +661,20 @@
 
     // ==================== SERVICE CORE (WEIDAO) LOGIC ====================
     function switchServiceTab(tab) {
-        ['orders','games','boosters'].forEach(t => document.getElementById(`sview-${t}`).classList.add('hidden'));
+        ['dashboard', 'orders','games','boosters', 'coupons', 'settings'].forEach(t => {
+            const el = document.getElementById(`sview-${t}`);
+            if(el) el.classList.add('hidden');
+        });
         document.getElementById(`sview-${tab}`).classList.remove('hidden');
+        
         document.querySelectorAll('.service-nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById(`stab-${tab}`).classList.add('active');
+        
+        if(tab === 'dashboard') fetchServiceDashboardStats(); // New
         if(tab === 'games') fetchServiceGames();
         if(tab === 'boosters') fetchServiceBoosters();
+        if(tab === 'coupons') fetchServiceCoupons(); // New
+        if(tab === 'settings') fetchServiceSettings(); // New
     }
 
     // [UPDATED] Smart API Call with Auto-Fallback
@@ -661,6 +729,34 @@
             Toast.fire({icon:'error', title: '連線錯誤', text: err.message}); 
             callback({status: 'error'}); 
         }
+    }
+    
+    // --- New: Dashboard Logic ---
+    function fetchServiceDashboardStats() {
+        callServiceApi({ action: "adminGetRevenueStats" }, (res) => {
+            if(res.status === 'success') {
+                document.getElementById('serviceTotalRevenue').innerText = `$${res.totalRevenue.toLocaleString()}`;
+                const ctx = document.getElementById('serviceRevenueChart').getContext('2d');
+                if (serviceDashboardChart) serviceDashboardChart.destroy();
+                
+                serviceDashboardChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(res.gameStats),
+                        datasets: [{
+                            data: Object.values(res.gameStats),
+                            backgroundColor: ['#10b981', '#3b82f6', '#a855f7', '#eab308', '#ef4444', '#ec4899'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: {family: "'JetBrains Mono', monospace"} } } }
+                    }
+                });
+            }
+        });
     }
 
     function serviceFetchOrders() {
@@ -722,7 +818,21 @@
                     <div><p class="text-xs text-slate-500 uppercase">Time</p><p class="text-white">${new Date(order.date).toLocaleDateString()} ${order.time}</p></div>
                     <div><p class="text-xs text-slate-500 uppercase">Total</p><p class="text-emerald-400 font-bold">$${order.totalPrice}</p></div>
                 </div>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                     <div><p class="text-xs text-slate-500 uppercase">Role</p><p class="text-white">${order.role || "無"}</p></div>
+                     <div><p class="text-xs text-slate-500 uppercase">Discount</p><p class="text-red-400 font-bold">-${order.discount || 0}</p></div>
+                </div>
                 <div class="bg-black/20 p-4 rounded-xl border border-white/5"><p class="text-xs text-purple-400 uppercase mb-2 font-bold">需求備註</p><p class="text-sm whitespace-pre-wrap">${order.note}</p></div>
+                
+                ${order.account ? `
+                <div class="bg-red-900/10 p-4 rounded-xl border border-red-500/20">
+                    <p class="text-xs text-red-400 uppercase mb-3 font-bold flex items-center"><i class="fas fa-key mr-2"></i> 代打帳號資訊 (保密)</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><p class="text-[10px] text-slate-500 mb-1">帳號</p><p class="text-white font-mono select-all text-sm break-all">${order.account}</p></div>
+                        <div><p class="text-[10px] text-slate-500 mb-1">密碼</p><p class="text-white font-mono select-all text-sm break-all">${order.password}</p></div>
+                    </div>
+                </div>` : ''}
+
                 <div class="bg-yellow-900/10 p-4 rounded-xl border border-yellow-500/20"><p class="text-xs text-yellow-500 uppercase mb-2 font-bold">付款資訊</p><p class="text-sm font-mono text-yellow-100 break-all">${order.payment || "無"}</p></div>
             </div>`;
         modal.classList.remove('hidden');
@@ -767,6 +877,54 @@
         callServiceApi(data, (res) => { if(res.status === 'success') { Toast.fire({icon:'success', title:'大神已儲存'}); fetchServiceBoosters(); } });
     }
     function deleteBooster(id) { Swal.fire({title:'刪除大神?', icon:'warning', showCancelButton:true, background:'#1e293b'}).then(r=>{ if(r.isConfirmed) callServiceApi({ action: "adminDeleteBooster", boosterId: id }, (res) => { if(res.status === 'success') fetchServiceBoosters(); });}); }
+
+    // --- New: Service Coupons ---
+    function fetchServiceCoupons() { callServiceApi({ action: "adminGetCoupons" }, (res) => { if(res.status === 'success') renderServiceCoupons(res.coupons); }); }
+    function renderServiceCoupons(list) {
+        document.getElementById('serviceCouponList').innerHTML = list.map(c => `
+            <div class="glass-panel p-4 flex justify-between items-center group">
+                <div>
+                    <div class="font-bold text-lg text-pink-400 font-mono">${c.code}</div>
+                    <div class="text-xs text-slate-400">折抵 $${c.value} | ${c.active ? '<span class="text-emerald-400">啟用</span>' : '<span class="text-red-400">停用</span>'}</div>
+                </div>
+                <button onclick="deleteServiceCoupon('${c.code}')" class="text-slate-600 hover:text-red-400 transition"><i class="fas fa-trash"></i></button>
+            </div>`).join('');
+    }
+    function saveServiceCoupon() {
+        const data = { action: "adminSaveCoupon", code: document.getElementById('c-code').value.toUpperCase(), type: 'fixed', value: document.getElementById('c-value').value, active: document.getElementById('c-active').checked };
+        if(!data.code || !data.value) return Toast.fire({icon:'warning', title:'請填寫完整'});
+        callServiceApi(data, (res) => { if(res.status === 'success') { Toast.fire({icon:'success', title:'優惠碼已新增'}); fetchServiceCoupons(); document.getElementById('c-code').value = ""; } });
+    }
+    function deleteServiceCoupon(code) { Swal.fire({title:'刪除優惠碼?', icon:'warning', showCancelButton:true, background:'#1e293b'}).then(r=>{ if(r.isConfirmed) callServiceApi({ action: "adminDeleteCoupon", code: code }, (res) => { if(res.status === 'success') fetchServiceCoupons(); });}); }
+
+    // --- New: Service Settings ---
+    function fetchServiceSettings() {
+        // [FIXED] Use GET request for getSettings as it is defined in doGet
+        fetch(API_SERVICE + "?action=getSettings")
+            .then(res => res.json())
+            .then(res => {
+                if(res) {
+                    document.getElementById('set-terms').value = res.terms || "";
+                    document.getElementById('set-payment').value = res.payment_notice || "";
+                    document.getElementById('set-priority').value = res.priority_rate || 0.3;
+                    document.getElementById('set-stream').value = res.stream_rate || 0.2;
+                }
+            })
+            .catch(err => {
+                console.error("Failed to fetch settings:", err);
+                Toast.fire({icon:'error', title: '無法載入設定', text: err.message});
+            });
+    }
+    function saveServiceSettings() {
+        const data = {
+            action: "adminSaveSettings",
+            terms: document.getElementById('set-terms').value,
+            payment_notice: document.getElementById('set-payment').value,
+            priority_rate: document.getElementById('set-priority').value,
+            stream_rate: document.getElementById('set-stream').value
+        };
+        callServiceApi(data, (res) => { if(res.status === 'success') Toast.fire({icon:'success', title:'系統設定已更新'}); });
+    }
 
     // --- Service Chat ---
     function openServiceChat(orderId) {
